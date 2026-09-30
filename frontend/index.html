@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPIDERLY — Network Reconnaissance &amp; Intelligence Platform</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="bg-grid"></div>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">◈</div>
+      <div class="brand-text"><b>SPIDERLY</b><span>RECON PLATFORM</span></div>
+    </div>
+    <div class="nav-item active" data-page="dashboard"><span class="nav-icon">▣</span> Dashboard</div>
+    <div class="nav-item" data-page="scanner"><span class="nav-icon">◎</span> Scanner</div>
+    <div class="nav-item" data-page="history"><span class="nav-icon">☰</span> Scan History</div>
+    <div class="nav-item" data-page="settings"><span class="nav-icon">⚙</span> Settings</div>
+    <div class="nav-item" data-page="about"><span class="nav-icon">ℹ</span> About</div>
+    <div class="sidebar-footer">
+      <div class="status-row"><span id="backendDot" class="status-dot offline"></span><span>Backend</span><span class="status-val" id="backendStatus">Checking…</span></div>
+      <div class="status-row"><span id="dbDot" class="status-dot offline"></span><span>Database</span><span class="status-val" id="dbStatus">Checking…</span></div>
+      <div class="status-row"><span id="wsDot" class="status-dot offline"></span><span>WebSocket</span><span class="status-val" id="wsStatus">Idle</span></div>
+    </div>
+  </aside>
+
+  <main id="main">
+
+    <!-- DASHBOARD -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Reconnaissance Dashboard</div>
+          <div class="page-sub" id="dashSub">No scan selected — start one from the Scanner tab.</div>
+        </div>
+        <button class="btn btn-ghost" id="goScannerBtn">+ New Scan</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card" title="Live/reachable hosts discovered in this scan"><div class="stat-num" id="statHosts">0</div><div class="stat-label">Hosts</div></div>
+        <div class="stat-card" title="TCP ports found open on the target"><div class="stat-num" id="statPorts">0</div><div class="stat-label">Open Ports</div></div>
+        <div class="stat-card" title="Distinct services identified across open ports"><div class="stat-num" id="statServices">0</div><div class="stat-label">Services</div></div>
+        <div class="stat-card" title="Evidence-based findings raised by the rule engine"><div class="stat-num" id="statFindings">0</div><div class="stat-label">Findings</div></div>
+        <div class="stat-card" title="Wall-clock time the scan took to complete"><div class="stat-num" id="statDuration">—</div><div class="stat-label">Duration</div></div>
+      </div>
+
+      <div id="progressPanel" class="panel hidden">
+        <div class="panel-title">◎ Reconnaissance Active</div>
+        <div class="progress-row"><div class="plabel"><span>Port Enumeration</span><span id="portProgLabel">0%</span></div><div class="progress-track"><div class="progress-fill" id="portProgFill" style="width:0%"></div></div></div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-title-row">
+            <div class="panel-title">◈ Network Topology</div>
+            <div class="graph-controls">
+              <button class="icon-btn" id="graphZoomIn" title="Zoom in" type="button">+</button>
+              <button class="icon-btn" id="graphZoomOut" title="Zoom out" type="button">−</button>
+              <button class="icon-btn" id="graphReset" title="Reset view" type="button">⟲</button>
+            </div>
+          </div>
+          <div id="networkSvgWrap"><svg id="networkSvg"></svg></div>
+          <div class="graph-legend">
+            <span><i class="legend-dot target"></i> Target host</span>
+            <span><i class="legend-dot port"></i> Open port</span>
+            <span class="legend-hint">Scroll to zoom · drag to pan · click a node for details</span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">▤ Live Scan Activity</div>
+          <div class="event-stream" id="eventStream"></div>
+        </div>
+      </div>
+
+      <div class="grid-gap panel">
+        <div class="panel-title-row">
+          <div class="panel-title">▦ Open Ports &amp; Services</div>
+          <div class="table-tools">
+            <input type="text" id="portsSearch" class="mini-input" placeholder="Search port, service, banner…">
+            <select id="portsSort" class="mini-input">
+              <option value="port-asc">Port ↑</option>
+              <option value="port-desc">Port ↓</option>
+              <option value="service-asc">Service A–Z</option>
+              <option value="service-desc">Service Z–A</option>
+            </select>
+          </div>
+        </div>
+        <table id="portsTable">
+          <thead><tr><th>Port</th><th>State</th><th>Protocol</th><th>Service / version</th><th>Banner</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty-state hidden" id="portsEmpty"><div class="big">◌</div>No open ports discovered yet.</div>
+        <div class="empty-state hidden" id="portsNoMatch"><div class="big">⌕</div>No ports match your search.</div>
+      </div>
+
+      <div class="grid-gap panel">
+        <div class="panel-title">⚠ Findings</div>
+        <div id="findingsList"></div>
+        <div class="empty-state hidden" id="findingsEmpty"><div class="big">✓</div>No findings recorded yet.</div>
+      </div>
+
+      <div class="grid-gap scan-id-row">
+        <div class="scan-id-tag hidden" id="scanIdTag">
+          <span>Scan ID: <span class="mono" id="scanIdValue">—</span></span>
+          <button class="copy-btn" id="copyScanIdBtn" title="Copy scan ID" type="button">⧉</button>
+        </div>
+        <button class="btn btn-ghost" id="cancelScanBtn" type="button" style="display:none;">Cancel Scan</button>
+        <a id="reportLink" class="btn btn-primary" href="#" target="_blank" style="text-decoration:none; display:inline-block;">Generate Report</a>
+      </div>
+    </section>
+
+    <!-- SCANNER -->
+    <section class="page" id="page-scanner">
+      <div class="page-header">
+        <div>
+          <div class="page-title">New Reconnaissance Scan</div>
+          <div class="page-sub">Only scan targets you own or are explicitly authorized to test.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <form class="scan-form" id="scanForm">
+          <div class="field">
+            <label>Target (IP or hostname)</label>
+            <input type="text" id="targetInput" placeholder="192.168.56.102" required>
+          </div>
+          <div class="field">
+            <label>Scan Mode</label>
+            <select id="modeInput">
+              <option value="quick">Quick — common ports</option>
+              <option value="standard">Standard — ports 1–1024</option>
+              <option value="custom">Custom — specify ports</option>
+            </select>
+          </div>
+          <div class="field" id="customPortField">
+            <label>Port Range</label>
+            <input type="text" id="customPortsInput" placeholder="1-1000,8080">
+          </div>
+          <button type="submit" class="btn btn-primary" id="startScanBtn">Start Scan</button>
+        </form>
+        <div class="error-msg" id="scanError"></div>
+      </div>
+      <p class="page-sub" style="margin-top:16px;">
+        SPIDERLY performs real TCP connect scans, banner grabs, and passive HTTP metadata
+        collection. It never performs exploitation, credential attacks, or destructive testing.
+      </p>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="page" id="page-history">
+      <div class="page-header">
+        <div><div class="page-title">Scan History</div><div class="page-sub">Previously completed and in-progress scans.</div></div>
+        <div class="table-tools">
+          <input type="text" id="historySearch" class="mini-input" placeholder="Filter by target…">
+          <button class="btn btn-ghost" id="refreshHistoryBtn">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="panel" id="historyList"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <div class="page-header"><div><div class="page-title">Settings</div><div class="page-sub">Local display preferences (not persisted server-side).</div></div></div>
+      <div class="panel">
+        <div class="field" style="max-width:320px; margin-bottom:16px;">
+          <label>Backend API URL</label>
+          <input type="text" id="apiBaseInput">
+        </div>
+        <div class="field" style="max-width:320px; margin-bottom:16px;">
+          <label>API key <span style="opacity:.6">(only if the backend sets SPIDERLY_API_KEY)</span></label>
+          <input type="password" id="apiKeyInput" autocomplete="off">
+        </div>
+        <button class="btn btn-ghost" id="saveApiBaseBtn">Save</button>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section class="page" id="page-about">
+      <div class="page-header"><div><div class="page-title">About SPIDERLY</div><div class="page-sub">Network Reconnaissance &amp; Intelligence Platform</div></div></div>
+      <div class="panel">
+        <p>SPIDERLY performs authorized network reconnaissance: TCP port scanning, service
+        identification, banner grabbing, and passive HTTP metadata collection, backed by a
+        real FastAPI + SQLite backend.</p>
+        <p><strong>Version:</strong> 0.3.1<br>
+        <strong>Backend status:</strong> <span id="aboutBackendStatus">checking…</span><br>
+        <strong>Scanner engine:</strong> asyncio TCP connect scan<br>
+        <strong>Database:</strong> SQLite</p>
+        <p style="color:var(--orange);">Only use SPIDERLY against systems you own or are explicitly authorized to test.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+<div id="toastStack" aria-live="polite"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
